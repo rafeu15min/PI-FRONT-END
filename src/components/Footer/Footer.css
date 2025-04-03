@@ -1,0 +1,10 @@
+div#footer {
+    background-color: black;
+    color: white;
+    text-decoration: underline;
+    width: 100%;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
