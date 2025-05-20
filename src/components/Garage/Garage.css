@@ -1,7 +1,6 @@
 div#garage {
     display: flex;
     align-items: center;
-    justify-content: center;
     width: 695px;
     height: 257px;
     padding: 20px;
