@@ -1,63 +1,72 @@
 import './App.css'
 import Navbar from './components/Navbar/Navbar'
 import Garage from './components/Garage/Garage';
-import Paragraphy from './components/Paragraphy/Paragraphy';
 import Footer from './components/Footer/Footer';
 import { useEffect, useState } from 'react';
 
+type SpotState = {
+  [key: string]: boolean;
+};
+
 function App() {
-  const [message, setMessage] = useState<any[]>([])
+  const [spots, setSpots] = useState<SpotState>({});
+  const [isConnected, setIsConnected] = useState(false);
 
-  const wurl = 'wss://rafeu.squareweb.app/parking/updates'
+  const wurl = 'wss://rafeu.squareweb.app/parking/updates';
 
-  const ws = new WebSocket(wurl)
-
-  useEffect(() => {  
+  useEffect(() => {
+    const ws = new WebSocket(wurl);
 
     ws.onopen = () => {
-      console.log('conectado')
-    }
+      console.log('Conexão estabelecida');
+      setIsConnected(true);
+    };
 
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      logbest(data)
-      setMessage([data, data, data, data])
-    }
+      const data = JSON.parse(event.data);
 
-    function logbest(data: any) {
-      console.log(data)
-    }
+      // Atualiza apenas a vaga específica recebida
+      setSpots(prev => ({
+        ...prev,
+        [data.spotId]: data.isOccupied
+      }));
+    };
 
     ws.onclose = () => {
-      console.log('Desconectado')
-    }
+      console.log('Conexão fechada');
+      setIsConnected(false);
+    };
 
-    ws.onerror = (err: any) => {
-      console.log(err)
-    }
+    ws.onerror = (err) => {
+      console.error('Erro na conexão:', err);
+      setIsConnected(false);
+    };
 
     return () => {
-      if (ws && ws.readyState === WebSocket.OPEN)
-        ws.close()
-    }
-  }, [wurl])
-console.log(message)
+      ws.close();
+    };
+  }, [wurl]);
+
   return (
     <div id='first'>
       <div id='second'>
         <Navbar />
+        <div className="connection-status">
+          {isConnected ? 'Online' : 'Offline'}
+        </div>
       </div>
+
       <div id='third'>
-        {
-          Array.isArray(message) ? (
-          message.map(index => (
-            <Garage key={index.spotId} boolean={index.isOccupied} name={index.spotId}/>
-          ))
-        ) : (
-          <p>Espere</p>
-        )
-        }
+        {/* Vagas fixas com IDs pré-definidos */}
+        {['00001', '00002', '00003', '00004'].map((spotId) => (
+          <Garage
+            key={spotId}
+            boolean={spots[spotId] || false} // Default para false se não recebido
+            name={spotId}
+          />
+        ))}
       </div>
+
       <Footer>Feito por Grupo xx - UNIVESP</Footer>
     </div>
   )
