@@ -41,10 +41,7 @@ function App() {
       console.error('Erro na conexão:', err);
       setIsConnected(false);
     };
-
-    return () => {
-      ws.close();
-    };
+    
   }, [wurl]);
 
   return (
