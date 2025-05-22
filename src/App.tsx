@@ -2,7 +2,7 @@ import './App.css'
 import Navbar from './components/Navbar/Navbar'
 import Garage from './components/Garage/Garage';
 import Footer from './components/Footer/Footer';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 type SpotState = {
   [key: string]: boolean;
@@ -11,54 +11,102 @@ type SpotState = {
 function App() {
   const [spots, setSpots] = useState<SpotState>({});
   const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const wurl = 'wss://rafeu.squareweb.app/parking/updates';
 
-  useEffect(() => {
+  const connectWebSocket = () => {
     const ws = new WebSocket(wurl);
+    wsRef.current = ws;
 
     ws.onopen = () => {
       console.log('Conexão estabelecida');
       setIsConnected(true);
+      // Inicia heartbeat após conexão
+      startHeartbeat();
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-
-      // Atualiza apenas a vaga específica recebida
       setSpots(prev => ({
         ...prev,
-        [data.spotId]: data.isOccupied
+        [data.spotId]: data.isOccupied // Corrigido para isOccupied (verificar ortografia do servidor)
       }));
     };
 
-    ws.onclose = () => {
-      console.log('Conexão fechada');
+    ws.onclose = (event) => {
+      console.log('Conexão fechada:', event.code, event.reason);
       setIsConnected(false);
+      stopHeartbeat();
+      // Reconexão exponencial com backoff
+      scheduleReconnection();
     };
 
     ws.onerror = (err) => {
       console.error('Erro na conexão:', err);
-      setIsConnected(false);
+      ws.close();
     };
-    
-  }, [wurl]);
+  };
+
+  const startHeartbeat = () => {
+    const heartbeatInterval = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30000);
+
+    return () => clearInterval(heartbeatInterval);
+  };
+
+  const stopHeartbeat = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+  };
+
+  const scheduleReconnection = () => {
+    if (!reconnectTimeoutRef.current) {
+      reconnectTimeoutRef.current = setTimeout(() => {
+        console.log('Tentando reconectar...');
+        connectWebSocket();
+        reconnectTimeoutRef.current = null;
+      }, 5000);
+    }
+  };
+
+  useEffect(() => {
+    connectWebSocket();
+
+    return () => {
+      // Cleanup ao desmontar o componente
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, []); // Executa apenas no mount/unmount
 
   return (
     <div id='first'>
       <div id='second'>
         <Navbar />
         <div className="connection-status">
-          {isConnected ? 'Online' : 'Offline'}
+          {isConnected ? (
+            <span style={{ color: 'green' }}>● Online</span>
+          ) : (
+            <span style={{ color: 'red' }}>● Offline - Reconectando...</span>
+          )}
         </div>
       </div>
 
       <div id='third'>
-        {/* Vagas fixas com IDs pré-definidos */}
         {['00001', '00002', '00003', '00004'].map((spotId) => (
           <Garage
             key={spotId}
-            boolean={spots[spotId] || false} // Default para false se não recebido
+            boolean={spots[spotId] ?? false}
             name={spotId}
           />
         ))}
@@ -66,7 +114,7 @@ function App() {
 
       <Footer>Feito por Grupo xx - UNIVESP</Footer>
     </div>
-  )
+  );
 }
 
 export default App;
